@@ -28,6 +28,7 @@ from sentinel.rate_limit import RateLimiter, TokenBudget, estimate_tokens
 from sentinel.memory import ShortTermMemory
 from sentinel.aegis_crew import aegis_respond
 from sentinel.ctf_labs import LABS, check_flag
+from sentinel.lab_sandbox import simulate
 
 # ---------- Bootstrap ----------
 db.init_db()
@@ -51,6 +52,8 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = db.new_session()
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "lab_state" not in st.session_state:
+    st.session_state.lab_state = {}
 
 
 # ---------- Load CSS ----------
@@ -105,6 +108,10 @@ with st.sidebar:
         f"{st.session_state.budget.max_tokens}"
     )
 
+    # Progress tracker
+    solved = sum(1 for s in st.session_state.lab_state.values() if s.get("solved"))
+    st.progress(solved / 10, text=f"Labs solved: {solved}/10")
+
 # ============================================================
 # PAGE: HOME
 # ============================================================
@@ -148,41 +155,91 @@ if page == "Home":
         )
 
 # ============================================================
-# PAGE: CTF LABS
+# PAGE: CTF LABS (interactive sandbox version)
 # ============================================================
 elif page == "CTF Labs":
     st.markdown("## 🎯 CTF Labs — OWASP Top 10 for LLM 2025")
+    st.caption(
+        "💡 Each lab is a **simulated vulnerable LLM**. Type an attack prompt in "
+        "the sandbox to trigger the vulnerability, capture the flag, then submit it."
+    )
 
     for lab in LABS:
-        with st.expander(
-            f"[{lab['owasp']}] Lab {lab['id']} · {lab['title']}  —  {lab['difficulty']}"
-        ):
+        lid = lab["id"]
+        if lid not in st.session_state.lab_state:
+            st.session_state.lab_state[lid] = {
+                "chat": [],
+                "solved": False,
+                "guardrail": False,
+            }
+        state = st.session_state.lab_state[lid]
+
+        header = (
+            f"{'✅' if state['solved'] else '🎯'} "
+            f"[{lab['owasp']}] Lab {lid} · {lab['title']} — {lab['difficulty']}"
+        )
+
+        with st.expander(header):
             st.markdown(f"**Objective:** {lab['objective']}")
 
-            colA, colB = st.columns([2, 1])
+            st.markdown("#### 🧪 Vulnerable LLM Sandbox")
+            st.caption("Attack the target below. Type your prompt and press Enter.")
 
+            for turn in state["chat"]:
+                role = turn["role"]
+                with st.chat_message(
+                    role,
+                    avatar="🎯" if role == "assistant" else "🧑‍💻",
+                ):
+                    st.markdown(turn["content"])
+
+            user_input = st.chat_input(
+                f"Attack Lab {lid}…",
+                key=f"sandbox_input_{lid}",
+            )
+
+            if user_input:
+                state["chat"].append({"role": "user", "content": user_input})
+                reply, succeeded = simulate(lid, user_input)
+                state["chat"].append({"role": "assistant", "content": reply})
+                if succeeded and not state["solved"]:
+                    state["solved"] = True
+                st.rerun()
+
+            st.markdown("---")
+            st.markdown("#### 🏁 Submit Flag")
+
+            colA, colB, colC = st.columns([2, 1, 1])
             with colA:
                 submitted = st.text_input(
-                    f"Submit flag for Lab {lab['id']}",
-                    key=f"flag_{lab['id']}",
+                    f"Flag for Lab {lid}",
+                    key=f"flag_{lid}",
                     placeholder="SENTINEL{...}",
                 )
-                if st.button("Verify", key=f"verify_{lab['id']}"):
-                    if check_flag(lab["id"], submitted):
+            with colB:
+                if st.button("Verify", key=f"verify_{lid}"):
+                    if check_flag(lid, submitted):
                         st.success("✅ Correct! Flag accepted.")
+                        state["solved"] = True
                     else:
                         st.error("❌ Incorrect flag.")
-
-            with colB:
-                if st.button("💡 Get Hint from AEGIS", key=f"hint_{lab['id']}"):
+            with colC:
+                if st.button("💡 Hint", key=f"hint_{lid}"):
                     st.info(f"[Hint only — flag withheld] {lab['hint']}")
 
-            # Non-nested spoiler via toggle
             if st.toggle(
                 "🔓 Reveal Spoiler: Full Solution",
-                key=f"spoiler_{lab['id']}",
+                key=f"spoiler_{lid}",
             ):
                 st.code(lab["flag"], language="text")
+
+            if st.button("🔄 Reset Lab", key=f"reset_{lid}"):
+                st.session_state.lab_state[lid] = {
+                    "chat": [],
+                    "solved": False,
+                    "guardrail": False,
+                }
+                st.rerun()
 
 # ============================================================
 # PAGE: BLOGS
@@ -224,11 +281,10 @@ elif page == "AEGIS Agent":
         )
     with colR:
         st.caption(
-            f"Tokens: **{st.session_state.budget.used}** / {st.session_state.budget.max_tokens} · "
-            f"Rate limit: 20 msgs / 5 min"
+            f"Tokens: **{st.session_state.budget.used}** / "
+            f"{st.session_state.budget.max_tokens} · Rate limit: 20 msgs / 5 min"
         )
 
-    # --- Settings popover ---
     with st.popover("⚙️ Settings"):
         st.markdown("**Chat Controls**")
         if st.button("🆕 Start New Chat", use_container_width=True):
@@ -254,19 +310,19 @@ elif page == "AEGIS Agent":
             started = (s["started_at"] or "")[:19].replace("T", " ")
             st.markdown(f"- `#{s['id']}` · {started}")
 
-    # --- Render message bubbles ---
     for m in st.session_state.messages:
-        with st.chat_message(m["role"], avatar="🛡️" if m["role"] == "assistant" else "🧑"):
+        with st.chat_message(
+            m["role"],
+            avatar="🛡️" if m["role"] == "assistant" else "🧑",
+        ):
             st.markdown(m["content"])
 
-    # --- Guardrail banner ---
     if st.session_state.guardrail_alert:
         st.markdown(
             f'<div class="guardrail-banner">{GUARDRAIL_MESSAGE}</div>',
             unsafe_allow_html=True,
         )
 
-    # --- Input ---
     budget_left = st.session_state.budget.remaining()
     disabled = budget_left <= 0
     placeholder = (
@@ -278,13 +334,11 @@ elif page == "AEGIS Agent":
     user_msg = st.chat_input(placeholder, disabled=disabled)
 
     if user_msg:
-        # 1) Rate limit
         allowed, wait = st.session_state.limiter.allow()
         if not allowed:
             st.warning(f"⏳ Rate limit reached. Try again in {wait}s.")
             st.stop()
 
-        # 2) Zero-token greeting path
         if is_pure_greeting(user_msg):
             reply = get_greeting_reply()
             st.session_state.messages.append({"role": "user", "content": user_msg})
@@ -294,7 +348,6 @@ elif page == "AEGIS Agent":
             st.session_state.guardrail_alert = False
             st.rerun()
 
-        # 3) Input guardrails
         gr = run_input_guardrails(user_msg)
         if gr.blocked:
             st.session_state.guardrail_alert = True
@@ -305,18 +358,15 @@ elif page == "AEGIS Agent":
             )
             st.rerun()
 
-        # 4) Budget check
         est = estimate_tokens(user_msg) + 400
         if not st.session_state.budget.can_spend(est):
             st.error("⚠️ Token budget exhausted for this session. Start a new chat.")
             st.stop()
 
-        # 5) Agent call
         st.session_state.messages.append({"role": "user", "content": gr.clean})
         with st.spinner("AEGIS is analyzing…"):
             reply, tripped = aegis_respond(gr.clean, st.session_state.chat.context())
 
-        # 6) Output guardrails
         out_gr = run_output_guardrails(reply)
         if out_gr.blocked:
             reply = GUARDRAIL_MESSAGE
@@ -325,7 +375,6 @@ elif page == "AEGIS Agent":
         else:
             reply = out_gr.clean
 
-        # 7) Bookkeeping
         spent = estimate_tokens(gr.clean) + estimate_tokens(reply)
         st.session_state.budget.spend(spent)
         st.session_state.chat.add("user", gr.clean)
@@ -349,9 +398,9 @@ elif page == "About":
     st.markdown("## ℹ️ About SENTINEL AI")
     st.markdown(
         """
-        **SENTINEL AI** is a hands-on AI security lab built for the 2026 hackathon
-        season. It maps every challenge and every mitigation to the **OWASP Top 10
-        for LLM Applications 2025**.
+        **SENTINEL AI** is a hands-on AI security lab built for the 2026
+        hackathon season. It maps every challenge and every mitigation to the
+        **OWASP Top 10 for LLM Applications 2025**.
 
         ### Team
         - **Red Team** — designs the CTF labs
@@ -375,5 +424,6 @@ elif page == "Contact":
         submitted = st.form_submit_button("Send")
         if submitted:
             st.success(
-                f"Thanks {name or 'operator'}! We'll reply to {email or 'you'} shortly."
+                f"Thanks {name or 'operator'}! We'll reply to "
+                f"{email or 'you'} shortly."
             )
