@@ -72,7 +72,7 @@ def load_css():
 load_css()
 
 # ============================================================
-# Apply theme to parent <body> via components.html (executes JS)
+# Apply theme to parent <body> via components.html
 # ============================================================
 theme = st.session_state.theme
 body_class = "theme-light" if theme == "light" else ""
@@ -334,7 +334,7 @@ elif page == "AEGIS Agent":
             st.session_state.session_id = db.new_session()
             st.session_state.chat.clear()
             st.session_state.messages = []
-            st.session_state.budget.reset()
+            st.session_state.budget.used = 0
             st.session_state.guardrail_alert = False
             st.rerun()
         if st.button("🛑 End Chat", use_container_width=True, key="settings_end"):
