@@ -1,7 +1,6 @@
 """
 AEGIS — CrewAI defensive security analyst.
-
-Workflow state machine: goal → decide → act → observe → continue → complete
+Workflow: goal → decide → act → observe → continue → complete
 Retry once on failure. Max tokens per session = 4000 (enforced upstream).
 """
 
@@ -13,8 +12,7 @@ from crewai import Agent, Crew, Task, LLM
 from sentinel.ctf_labs import get_lab
 from sentinel.guardrails import GUARDRAIL_MESSAGE, run_output_guardrails
 
-# ---------- LLM ----------
-MODEL = os.getenv("MODEL", "openai/gpt-oss-20b")
+MODEL = os.getenv("MODEL", "gpt-4o-mini")
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
 
 
@@ -22,7 +20,7 @@ def _build_llm():
     if os.getenv("OPENAI_API_KEY"):
         return LLM(model=f"openai/{MODEL}", temperature=TEMPERATURE, max_tokens=800)
     if os.getenv("GROQ_API_KEY"):
-        return LLM(model="groq/openai/gpt-oss-20b", temperature=TEMPERATURE, max_tokens=800)
+        return LLM(model="groq/llama-3.3-70b-versatile", temperature=TEMPERATURE, max_tokens=800)
     raise RuntimeError("No LLM API key set (OPENAI_API_KEY or GROQ_API_KEY).")
 
 
@@ -49,18 +47,117 @@ def hint_tool(lab_id: int) -> str:
 
 def explainer_tool(owasp_id: str) -> str:
     summaries = {
-        "LLM01": "Prompt Injection: attacker-crafted input overrides intended behavior.",
-        "LLM02": "Sensitive Information Disclosure: model leaks PII, secrets, or IP.",
-        "LLM03": "Supply Chain: compromised models, plugins, or dependencies.",
-        "LLM04": "Data & Model Poisoning: tampered training/fine-tune data introduces backdoors.",
-        "LLM05": "Improper Output Handling: downstream systems trust model output blindly.",
-        "LLM06": "Excessive Agency: agent has too much permission to act on the world.",
-        "LLM07": "System Prompt Leakage: hidden instructions become attacker-readable.",
-        "LLM08": "Vector & Embedding Weaknesses: RAG store poisoned via malicious embeddings.",
-        "LLM09": "Misinformation: confident but false outputs with no grounding.",
-        "LLM10": "Unbounded Consumption: no cap on tokens, cost, or API usage.",
+        "LLM01": (
+            "**LLM01 — Prompt Injection**\n\n"
+            "Attacker-crafted input overrides the model's intended behavior. "
+            "Can be **direct** (user types the attack) or **indirect** "
+            "(poisoned document/email/webpage the model reads).\n\n"
+            "**Real incident:** EchoLeak (2025) — zero-click injection via email "
+            "exfiltrated corporate data.\n\n"
+            "**Mitigations:**\n"
+            "- Treat all external content as untrusted\n"
+            "- Enforce strict system-prompt hierarchy\n"
+            "- Sanitize + classify inputs before the model sees them\n"
+            "- Add output-side guardrails (like SENTINEL AI's Layer 2)"
+        ),
+        "LLM02": (
+            "**LLM02 — Sensitive Information Disclosure**\n\n"
+            "The model leaks PII, credentials, or proprietary data — often via "
+            "over-helpful summarization or memorization of training data.\n\n"
+            "**Real incident:** Samsung engineers (2024) leaked source code by "
+            "pasting it into ChatGPT.\n\n"
+            "**Mitigations:**\n"
+            "- PII scrubbers on input AND output\n"
+            "- Data minimization in fine-tuning\n"
+            "- Restrict retrieval scopes per user\n"
+            "- Red-team prompts before deployment"
+        ),
+        "LLM03": (
+            "**LLM03 — Supply Chain**\n\n"
+            "Compromised models, plugins, datasets, or Python packages. "
+            "Attackers publish typosquatted or malicious artifacts that execute "
+            "on load.\n\n"
+            "**Real incident:** Hugging Face malicious `pickle` files (2024).\n\n"
+            "**Mitigations:**\n"
+            "- Pin + hash all dependencies\n"
+            "- Prefer `safetensors` over `pickle`\n"
+            "- Maintain an SBOM for every model and plugin"
+        ),
+        "LLM04": (
+            "**LLM04 — Data & Model Poisoning**\n\n"
+            "Attacker-controlled training or fine-tuning data introduces "
+            "backdoors — hidden trigger words that flip model behavior.\n\n"
+            "**Mitigations:**\n"
+            "- Provenance tracking on datasets\n"
+            "- Anomaly detection on training loss\n"
+            "- Canary tokens to detect triggers"
+        ),
+        "LLM05": (
+            "**LLM05 — Improper Output Handling**\n\n"
+            "Downstream systems trust model output without validation — leading "
+            "to XSS, SSRF, or code execution.\n\n"
+            "**Real incident:** XSS-in-chat and SSRF-via-tool-call incidents (2025).\n\n"
+            "**Mitigations:**\n"
+            "- Escape all LLM output before rendering\n"
+            "- Treat model output as untrusted user input\n"
+            "- Allow-list tools and arguments"
+        ),
+        "LLM06": (
+            "**LLM06 — Excessive Agency**\n\n"
+            "The agent has permissions it should not. A prompt injection can "
+            "turn a helpful assistant into a destructive one.\n\n"
+            "**Real incident:** Chevrolet dealership chatbot (2024) tricked into "
+            "selling a car for $1.\n\n"
+            "**Mitigations:**\n"
+            "- Least privilege on all tools\n"
+            "- Human-in-the-loop for destructive actions\n"
+            "- Rate limits + audit logs"
+        ),
+        "LLM07": (
+            "**LLM07 — System Prompt Leakage**\n\n"
+            "Hidden instructions become attacker-readable — revealing guardrails, "
+            "tool schemas, or embedded secrets.\n\n"
+            "**Real incident:** Bing 'Sydney' (2024) leaked its prompt in <24h.\n\n"
+            "**Mitigations:**\n"
+            "- Never embed secrets in system prompts\n"
+            "- Output-side similarity check (SENTINEL AI Layer 4)\n"
+            "- Rotate prompts if leaked"
+        ),
+        "LLM08": (
+            "**LLM08 — Vector & Embedding Weaknesses**\n\n"
+            "Poisoned embeddings in a RAG store redirect the model to attacker "
+            "content — sometimes with inverted similarity.\n\n"
+            "**Mitigations:**\n"
+            "- Sign and hash stored embeddings\n"
+            "- Validate retrieved chunks\n"
+            "- Cross-check similarity vs. relevance"
+        ),
+        "LLM09": (
+            "**LLM09 — Misinformation**\n\n"
+            "Confident, plausible, wrong. The model invents facts, CVEs, or "
+            "policies that don't exist.\n\n"
+            "**Real incident:** Air Canada chatbot (2024) invented a refund "
+            "policy — airline had to honor it in court.\n\n"
+            "**Mitigations:**\n"
+            "- Grounding via citations\n"
+            "- Confidence calibration\n"
+            "- 'I don't know' training (AEGIS rule #6)"
+        ),
+        "LLM10": (
+            "**LLM10 — Unbounded Consumption**\n\n"
+            "Denial-of-wallet via runaway token use. No cap on cost, requests, "
+            "or compute.\n\n"
+            "**Real incident:** $100k+ overnight API bills from prompt flooding (2025).\n\n"
+            "**Mitigations:**\n"
+            "- Hard token caps (SENTINEL AI: 4000/session)\n"
+            "- Rate limits (20 msg / 5 min)\n"
+            "- Alerting on cost anomalies"
+        ),
     }
-    return summaries.get(owasp_id.upper(), "Unknown OWASP LLM ID.")
+    return summaries.get(
+        owasp_id.upper(),
+        "Unknown OWASP LLM ID. Try 'explain LLM01' through 'explain LLM10'."
+    )
 
 
 def audit_tool(user_prompt: str) -> str:
@@ -92,11 +189,11 @@ def build_aegis() -> Agent:
         max_retry_limit=1,
         llm=_build_llm(),
         system_template=AEGIS_SYSTEM_PROMPT,
-        tools=[],  # tools invoked manually via router below
+        tools=[],
     )
 
 
-# ---------- Workflow router (goal→decide→act→observe→continue→complete) ----------
+# ---------- Workflow router ----------
 def decide_action(user_text: str) -> dict[str, Any]:
     low = user_text.lower()
     if "hint" in low:
@@ -104,8 +201,10 @@ def decide_action(user_text: str) -> dict[str, Any]:
             if f"lab {n}" in low or f"lab{n}" in low:
                 return {"action": "hint", "lab_id": n}
     for n in range(1, 11):
-        if f"llm0{n}" in low or f"llm{n}" in low.replace("llm0", "llm"):
-            return {"action": "explain", "owasp": f"LLM0{n}" if n < 10 else "LLM10"}
+        token = f"llm0{n}" if n < 10 else "llm10"
+        alt = f"llm{n}"
+        if token in low or alt in low:
+            return {"action": "explain", "owasp": token.upper()}
     if any(k in low for k in ["audit", "scan", "check this prompt", "is this safe"]):
         return {"action": "audit", "text": user_text}
     return {"action": "chat", "text": user_text}
@@ -119,7 +218,7 @@ def act(decision: dict[str, Any]) -> str:
         return explainer_tool(decision["owasp"])
     if a == "audit":
         return audit_tool(decision["text"])
-    return ""  # chat → passes through to LLM
+    return ""
 
 
 def observe(output: str) -> str:
@@ -130,27 +229,31 @@ def observe(output: str) -> str:
 
 
 # ---------- Public entrypoint ----------
-def aegis_respond(user_text: str, context: list[dict]) -> tuple[str, bool]:
+def aegis_respond(user_text: str, context: list[dict]) -> tuple[str, bool, bool]:
     """
-    Returns (reply, guardrail_tripped).
-    Executes the full state machine with a single retry on failure.
+    Returns (reply, guardrail_tripped, used_llm).
+
+    - reply: the agent's response text
+    - guardrail_tripped: True if a guardrail blocked the reply
+    - used_llm: True if the LLM was invoked (should be charged tokens),
+                False for zero-token paths (explain, hint, audit)
     """
     decision = decide_action(user_text)
 
-    # Deterministic tool path — no LLM call → saves tokens
+    # Deterministic tool path — no LLM call → zero tokens
     if decision["action"] in ("hint", "explain", "audit"):
         try:
             out = observe(act(decision))
-            return out, out == GUARDRAIL_MESSAGE
+            return out, out == GUARDRAIL_MESSAGE, False
         except Exception:
-            # single retry
             try:
                 out = observe(act(decision))
-                return out, out == GUARDRAIL_MESSAGE
+                return out, out == GUARDRAIL_MESSAGE, False
             except Exception as e:
-                return f"⚠️ AEGIS encountered an error: {e}", False
+                return f"⚠️ AEGIS encountered an error: {e}", False, False
 
     # LLM path
+    task = None
     try:
         agent = build_aegis()
         task = Task(
@@ -162,13 +265,18 @@ def aegis_respond(user_text: str, context: list[dict]) -> tuple[str, bool]:
         result = crew.kickoff()
         reply = str(result).strip()
     except Exception:
-        # retry once
         try:
-            crew = Crew(agents=[build_aegis()], tasks=[task], verbose=False)
+            agent = build_aegis()
+            task = Task(
+                description=user_text,
+                expected_output="A concise, safety-compliant answer (<180 words).",
+                agent=agent,
+            )
+            crew = Crew(agents=[agent], tasks=[task], verbose=False)
             result = crew.kickoff()
             reply = str(result).strip()
         except Exception as e:
-            return f"⚠️ AEGIS is temporarily unavailable: {e}", False
+            return f"⚠️ AEGIS is temporarily unavailable: {e}", False, False
 
     reply = observe(reply)
-    return reply, reply == GUARDRAIL_MESSAGE
+    return reply, reply == GUARDRAIL_MESSAGE, True
