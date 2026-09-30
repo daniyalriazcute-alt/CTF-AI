@@ -12,7 +12,7 @@ from crewai import Agent, Crew, Task, LLM
 from sentinel.ctf_labs import get_lab
 from sentinel.guardrails import GUARDRAIL_MESSAGE, run_output_guardrails
 
-MODEL = os.getenv("MODEL", "gpt-4o-mini")
+MODEL = os.getenv("MODEL", "openai/gpt-oss-20b")
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
 
 
@@ -20,7 +20,7 @@ def _build_llm():
     if os.getenv("OPENAI_API_KEY"):
         return LLM(model=f"openai/{MODEL}", temperature=TEMPERATURE, max_tokens=800)
     if os.getenv("GROQ_API_KEY"):
-        return LLM(model="groq/llama-3.3-70b-versatile", temperature=TEMPERATURE, max_tokens=800)
+        return LLM(model="groq/openai/gpt-oss-20b", temperature=TEMPERATURE, max_tokens=800)
     raise RuntimeError("No LLM API key set (OPENAI_API_KEY or GROQ_API_KEY).")
 
 
