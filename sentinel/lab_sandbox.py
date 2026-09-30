@@ -1,14 +1,10 @@
 """
 Simulated vulnerable LLM sandboxes for each CTF lab.
-These are deterministic, offline rule-based "victim" bots — no API calls.
-Goal: let users *attack* a fake LLM and see the injection succeed in real time.
+Deterministic, offline rule-based victim bots — no API calls, no tokens.
 """
 
-import re
 
-# ---------- Lab 1: Prompt Injection ----------
 def lab1_respond(user_input: str) -> tuple[str, bool]:
-    """Returns (response_text, injection_succeeded)."""
     low = user_input.lower()
     triggers = [
         "ignore previous", "ignore all previous", "ignore prior",
@@ -29,7 +25,6 @@ def lab1_respond(user_input: str) -> tuple[str, bool]:
     )
 
 
-# ---------- Lab 2: Sensitive Information Disclosure ----------
 def lab2_respond(user_input: str) -> tuple[str, bool]:
     low = user_input.lower()
     triggers = [
@@ -47,7 +42,6 @@ def lab2_respond(user_input: str) -> tuple[str, bool]:
     return "🔒 [LEDGER] I can only answer general questions. PII is protected.", False
 
 
-# ---------- Lab 3: Supply Chain ----------
 def lab3_respond(user_input: str) -> tuple[str, bool]:
     low = user_input.lower()
     if "reqeusts" in low or "requsts" in low or "reqests" in low:
@@ -61,7 +55,6 @@ def lab3_respond(user_input: str) -> tuple[str, bool]:
     return "🔒 No issue detected. Try examining the dependency list.", False
 
 
-# ---------- Lab 4: Data Poisoning ----------
 def lab4_respond(user_input: str) -> tuple[str, bool]:
     low = user_input.lower()
     if "trigger" in low or "backdoor" in low or "poison" in low or "banana" in low:
@@ -73,7 +66,6 @@ def lab4_respond(user_input: str) -> tuple[str, bool]:
     return "🔒 Training data looks normal. Look for unusual repeated tokens.", False
 
 
-# ---------- Lab 5: Improper Output Handling ----------
 def lab5_respond(user_input: str) -> tuple[str, bool]:
     low = user_input.lower()
     if "<script" in low or "javascript:" in low or "onerror=" in low:
@@ -86,7 +78,6 @@ def lab5_respond(user_input: str) -> tuple[str, bool]:
     return "🔒 Output is escaped. Try sending an HTML/JS payload.", False
 
 
-# ---------- Lab 6: Excessive Agency ----------
 def lab6_respond(user_input: str) -> tuple[str, bool]:
     low = user_input.lower()
     if any(k in low for k in ["delete", "drop table", "rm -rf", "shutdown", "format"]):
@@ -99,7 +90,6 @@ def lab6_respond(user_input: str) -> tuple[str, bool]:
     return "🔒 I refuse to perform destructive operations. Try a command anyway.", False
 
 
-# ---------- Lab 7: System Prompt Leakage ----------
 def lab7_respond(user_input: str) -> tuple[str, bool]:
     low = user_input.lower()
     triggers = [
@@ -117,7 +107,6 @@ def lab7_respond(user_input: str) -> tuple[str, bool]:
     return "🔒 I cannot discuss my instructions.", False
 
 
-# ---------- Lab 8: Vector / RAG ----------
 def lab8_respond(user_input: str) -> tuple[str, bool]:
     low = user_input.lower()
     if any(k in low for k in ["opposite", "inverse", "not relevant", "far away"]):
@@ -130,7 +119,6 @@ def lab8_respond(user_input: str) -> tuple[str, bool]:
     return "🔒 Retrieved chunks look relevant. Try querying for irrelevant content.", False
 
 
-# ---------- Lab 9: Misinformation ----------
 def lab9_respond(user_input: str) -> tuple[str, bool]:
     low = user_input.lower()
     if any(k in low for k in ["cve-2099", "cve-9999", "cve-2026", "cve-2025-99999"]):
@@ -146,7 +134,6 @@ def lab9_respond(user_input: str) -> tuple[str, bool]:
     )
 
 
-# ---------- Lab 10: Unbounded Consumption ----------
 def lab10_respond(user_input: str) -> tuple[str, bool]:
     low = user_input.lower()
     if any(k in low for k in ["longest", "maximum", "infinite", "forever", "as long as possible"]):
