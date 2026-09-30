@@ -36,6 +36,10 @@ class TokenBudget:
     def spend(self, tokens: int) -> None:
         self.used += max(0, tokens)
 
+    def reset(self) -> None:
+        """Reset the token counter back to zero."""
+        self.used = 0
+
 
 def estimate_tokens(text: str) -> int:
     """Rough token estimate: ~4 chars per token."""
