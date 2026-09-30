@@ -1,0 +1,201 @@
+/* =========================================================
+   SENTINEL AI — Global Styles
+   Dark (default) + Light theme via [data-theme]
+   ========================================================= */
+
+:root,
+[data-theme="dark"] {
+  --bg: #0a0e17;
+  --fg: #e6f0ff;
+  --card: #111726;
+  --accent: #00e5ff;
+  --accent-2: #7c5cff;
+  --danger: #ff2e63;
+  --muted: #8a94a7;
+  --border: #1e293b;
+}
+
+[data-theme="light"] {
+  --bg: #f5f7fb;
+  --fg: #0a0e17;
+  --card: #ffffff;
+  --accent: #0a66ff;
+  --accent-2: #6c47ff;
+  --danger: #d90429;
+  --muted: #4a5568;
+  --border: #e2e8f0;
+}
+
+/* Force Streamlit background */
+.stApp {
+  background-color: var(--bg) !important;
+  color: var(--fg) !important;
+}
+
+section[data-testid="stSidebar"] {
+  background-color: var(--card) !important;
+  border-right: 1px solid var(--border);
+}
+
+/* ---------- Header ---------- */
+.sentinel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px 16px 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.brand {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--fg);
+}
+.brand .accent { color: var(--accent); }
+
+/* ---------- LED ---------- */
+.led {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.led-ok    { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+.led-danger{ background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+.blink { animation: blink 1s infinite; }
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.15; }
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  position: relative;
+  width: 100%;
+  height: 420px;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 28px;
+  border: 1px solid var(--border);
+}
+.hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(0.45) saturate(1.1);
+}
+.hero-overlay {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 48px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 100%);
+}
+.hero-title {
+  font-size: 42px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.15;
+  margin: 0 0 12px 0;
+}
+.hero-title .accent { color: var(--accent); }
+.hero-sub {
+  font-size: 17px;
+  color: #d8e3ff;
+  max-width: 640px;
+}
+
+/* ---------- Cards ---------- */
+.feature-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  height: 100%;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.feature-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 26px rgba(0,229,255,0.15);
+}
+.feature-card h4 {
+  margin-top: 0;
+  color: var(--accent);
+}
+
+/* ---------- Chat bubbles ---------- */
+[data-testid="stChatMessage"] {
+  background: var(--card) !important;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+
+/* ---------- Guardrail banner ---------- */
+.guardrail-banner {
+  background: linear-gradient(90deg, #3b0d1a, #5a0f22);
+  border-left: 4px solid var(--danger);
+  color: #ffe3ea;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin: 12px 0;
+  font-weight: 600;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,46,99,0.5); }
+  50%     { box-shadow: 0 0 18px 4px rgba(255,46,99,0.4); }
+}
+
+/* ---------- Avatar ---------- */
+.avatar-wrap { text-align: center; padding-top: 10px; }
+.avatar-circle {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--accent), var(--accent-2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  margin: 0 auto 10px auto;
+  box-shadow: 0 0 24px rgba(0,229,255,0.35);
+}
+.avatar-name {
+  font-weight: 800;
+  color: var(--fg);
+  letter-spacing: 1px;
+}
+.avatar-status {
+  color: #22c55e;
+  font-size: 12px;
+}
+
+/* ---------- Buttons ---------- */
+.stButton > button {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  transition: all .15s ease;
+}
+.stButton > button:hover {
+  background: var(--accent);
+  color: #001018;
+}
+
+/* ---------- Code ---------- */
+code, pre {
+  background: rgba(0,229,255,0.08) !important;
+  color: var(--accent) !important;
+  border-radius: 6px;
+}
