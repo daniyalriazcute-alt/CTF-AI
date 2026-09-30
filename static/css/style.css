@@ -1,10 +1,22 @@
 /* =========================================================
    SENTINEL AI — Global Styles
-   Dark (default) + Light theme via [data-theme]
+   Theme switching: body gets class from JS injection
    ========================================================= */
 
-:root,
-[data-theme="dark"] {
+/* ---------- Dark (default) ---------- */
+body, .stApp {
+  background-color: #0a0e17 !important;
+  color: #e6f0ff !important;
+}
+
+/* ---------- Light ---------- */
+body.theme-light, body.theme-light .stApp {
+  background-color: #f5f7fb !important;
+  color: #0a0e17 !important;
+}
+
+/* ---------- CSS variables scoped to body classes ---------- */
+body {
   --bg: #0a0e17;
   --fg: #e6f0ff;
   --card: #111726;
@@ -15,7 +27,7 @@
   --border: #1e293b;
 }
 
-[data-theme="light"] {
+body.theme-light {
   --bg: #f5f7fb;
   --fg: #0a0e17;
   --card: #ffffff;
@@ -26,15 +38,14 @@
   --border: #e2e8f0;
 }
 
-/* Force Streamlit background */
-.stApp {
-  background-color: var(--bg) !important;
-  color: var(--fg) !important;
-}
-
+/* ---------- Sidebar ---------- */
 section[data-testid="stSidebar"] {
   background-color: var(--card) !important;
   border-right: 1px solid var(--border);
+}
+
+section[data-testid="stSidebar"] * {
+  color: var(--fg) !important;
 }
 
 /* ---------- Header ---------- */
@@ -130,6 +141,7 @@ section[data-testid="stSidebar"] {
   margin-top: 0;
   color: var(--accent);
 }
+.feature-card p { color: var(--fg); }
 
 /* ---------- Chat bubbles ---------- */
 [data-testid="stChatMessage"] {
@@ -198,4 +210,30 @@ code, pre {
   background: rgba(0,229,255,0.08) !important;
   color: var(--accent) !important;
   border-radius: 6px;
+}
+
+/* ---------- Light-mode tweaks for Streamlit internals ---------- */
+body.theme-light .stApp,
+body.theme-light section[data-testid="stSidebar"] {
+  color: #0a0e17 !important;
+}
+body.theme-light h1, body.theme-light h2, body.theme-light h3,
+body.theme-light h4, body.theme-light h5, body.theme-light h6,
+body.theme-light p, body.theme-light span, body.theme-light label,
+body.theme-light .stMarkdown {
+  color: #0a0e17 !important;
+}
+body.theme-light [data-testid="stMetricValue"],
+body.theme-light [data-testid="stMetricLabel"] {
+  color: #0a0e17 !important;
+}
+body.theme-light [data-testid="stExpander"] {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+body.theme-light .stTextInput input,
+body.theme-light .stChatInput textarea {
+  background: #ffffff !important;
+  color: #0a0e17 !important;
+  border: 1px solid #cbd5e1 !important;
 }
