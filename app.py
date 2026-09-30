@@ -408,10 +408,12 @@ elif page == "AEGIS Agent":
             st.error("⚠️ Token budget exhausted for this session. Start a new chat.")
             st.stop()
 
-        # Agent call
+        # Agent call — returns (reply, guardrail_tripped, used_llm)
         st.session_state.messages.append({"role": "user", "content": gr.clean})
         with st.spinner("AEGIS is analyzing…"):
-            reply, tripped = aegis_respond(gr.clean, st.session_state.chat.context())
+            reply, tripped, used_llm = aegis_respond(
+                gr.clean, st.session_state.chat.context()
+            )
 
         # Output guardrails
         out_gr = run_output_guardrails(reply)
@@ -422,20 +424,22 @@ elif page == "AEGIS Agent":
         else:
             reply = out_gr.clean
 
-        # Bookkeeping
-        spent = estimate_tokens(gr.clean) + estimate_tokens(reply)
-        st.session_state.budget.spend(spent)
+        # Bookkeeping — only charge tokens if the LLM was actually invoked
+        if used_llm:
+            user_tokens = estimate_tokens(gr.clean)
+            reply_tokens = estimate_tokens(reply)
+            st.session_state.budget.spend(user_tokens + reply_tokens)
+        else:
+            user_tokens = 0
+            reply_tokens = 0
+
         st.session_state.chat.add("user", gr.clean)
         st.session_state.chat.add("assistant", reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
         st.session_state.guardrail_alert = tripped
 
-        db.save_message(
-            st.session_state.session_id, "user", gr.clean, estimate_tokens(gr.clean)
-        )
-        db.save_message(
-            st.session_state.session_id, "assistant", reply, estimate_tokens(reply)
-        )
+        db.save_message(st.session_state.session_id, "user", gr.clean, user_tokens)
+        db.save_message(st.session_state.session_id, "assistant", reply, reply_tokens)
 
         st.rerun()
 
