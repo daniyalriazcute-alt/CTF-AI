@@ -5,6 +5,7 @@ Run: streamlit run app.py
 
 import os
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 from streamlit_option_menu import option_menu
 
@@ -59,7 +60,7 @@ if "lab_state" not in st.session_state:
 
 
 # ============================================================
-# Load CSS from file
+# Load CSS
 # ============================================================
 def load_css():
     css_path = os.path.join("static", "css", "style.css")
@@ -71,31 +72,39 @@ def load_css():
 load_css()
 
 # ============================================================
-# Apply theme to <body> via JavaScript injection
-# This is what makes the dark/light toggle actually work.
+# Apply theme to parent <body> via components.html (executes JS)
 # ============================================================
 theme = st.session_state.theme
 body_class = "theme-light" if theme == "light" else ""
 
-st.markdown(
+components.html(
     f"""
     <script>
     (function() {{
-        const cls = "{body_class}";
-        document.body.classList.remove("theme-light", "theme-dark");
-        if (cls) {{
-            document.body.classList.add(cls);
+        try {{
+            const doc = window.parent.document;
+            const cls = "{body_class}";
+
+            doc.body.classList.remove("theme-light", "theme-dark");
+            const app = doc.querySelector('.stApp');
+            if (app) {{
+                app.classList.remove("theme-light", "theme-dark");
+            }}
+
+            if (cls) {{
+                doc.body.classList.add(cls);
+                if (app) app.classList.add(cls);
+            }}
+
+            try {{ window.parent.localStorage.setItem("sentinel-theme", "{theme}"); }} catch(e) {{}}
+        }} catch(e) {{
+            console.error("Theme injection failed:", e);
         }}
-        const root = document.querySelector('.stApp');
-        if (root) {{
-            root.classList.remove("theme-light", "theme-dark");
-            if (cls) root.classList.add(cls);
-        }}
-        try {{ localStorage.setItem("sentinel-theme", "{theme}"); }} catch(e) {{}}
     }})();
     </script>
     """,
-    unsafe_allow_html=True,
+    height=0,
+    width=0,
 )
 
 # ============================================================
@@ -142,7 +151,6 @@ with st.sidebar:
         f"{st.session_state.budget.max_tokens}"
     )
 
-    # Lab progress
     solved = sum(1 for s in st.session_state.lab_state.values() if s.get("solved"))
     st.progress(solved / 10, text=f"Labs solved: {solved}/10")
 
