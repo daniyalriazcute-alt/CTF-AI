@@ -30,7 +30,9 @@ from sentinel.aegis_crew import aegis_respond
 from sentinel.ctf_labs import LABS, check_flag
 from sentinel.lab_sandbox import simulate
 
-# ---------- Bootstrap ----------
+# ============================================================
+# Bootstrap session state
+# ============================================================
 db.init_db()
 
 if "theme" not in st.session_state:
@@ -56,7 +58,9 @@ if "lab_state" not in st.session_state:
     st.session_state.lab_state = {}
 
 
-# ---------- Load CSS ----------
+# ============================================================
+# Load CSS from file
+# ============================================================
 def load_css():
     css_path = os.path.join("static", "css", "style.css")
     if os.path.exists(css_path):
@@ -66,10 +70,37 @@ def load_css():
 
 load_css()
 
+# ============================================================
+# Apply theme to <body> via JavaScript injection
+# This is what makes the dark/light toggle actually work.
+# ============================================================
 theme = st.session_state.theme
-st.markdown(f'<div data-theme="{theme}"></div>', unsafe_allow_html=True)
+body_class = "theme-light" if theme == "light" else ""
 
-# ---------- Header LED ----------
+st.markdown(
+    f"""
+    <script>
+    (function() {{
+        const cls = "{body_class}";
+        document.body.classList.remove("theme-light", "theme-dark");
+        if (cls) {{
+            document.body.classList.add(cls);
+        }}
+        const root = document.querySelector('.stApp');
+        if (root) {{
+            root.classList.remove("theme-light", "theme-dark");
+            if (cls) root.classList.add(cls);
+        }}
+        try {{ localStorage.setItem("sentinel-theme", "{theme}"); }} catch(e) {{}}
+    }})();
+    </script>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ============================================================
+# Header with LED
+# ============================================================
 led_class = "led led-danger blink" if st.session_state.guardrail_alert else "led led-ok"
 st.markdown(
     f"""
@@ -81,7 +112,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------- Sidebar ----------
+# ============================================================
+# Sidebar navigation
+# ============================================================
 with st.sidebar:
     st.markdown("### Navigation")
     page = option_menu(
@@ -96,9 +129,10 @@ with st.sidebar:
             "nav-link-selected": {"background-color": "#00e5ff22"},
         },
     )
+
     st.markdown("---")
     toggle_label = "🌞 Light Mode" if theme == "dark" else "🌙 Dark Mode"
-    if st.button(toggle_label, use_container_width=True):
+    if st.button(toggle_label, use_container_width=True, key="theme_toggle_btn"):
         st.session_state.theme = "light" if theme == "dark" else "dark"
         st.rerun()
 
@@ -108,7 +142,7 @@ with st.sidebar:
         f"{st.session_state.budget.max_tokens}"
     )
 
-    # Progress tracker
+    # Lab progress
     solved = sum(1 for s in st.session_state.lab_state.values() if s.get("solved"))
     st.progress(solved / 10, text=f"Labs solved: {solved}/10")
 
@@ -155,7 +189,7 @@ if page == "Home":
         )
 
 # ============================================================
-# PAGE: CTF LABS (interactive sandbox version)
+# PAGE: CTF LABS
 # ============================================================
 elif page == "CTF Labs":
     st.markdown("## 🎯 CTF Labs — OWASP Top 10 for LLM 2025")
@@ -287,7 +321,7 @@ elif page == "AEGIS Agent":
 
     with st.popover("⚙️ Settings"):
         st.markdown("**Chat Controls**")
-        if st.button("🆕 Start New Chat", use_container_width=True):
+        if st.button("🆕 Start New Chat", use_container_width=True, key="settings_new"):
             db.end_session(st.session_state.session_id)
             st.session_state.session_id = db.new_session()
             st.session_state.chat.clear()
@@ -295,10 +329,10 @@ elif page == "AEGIS Agent":
             st.session_state.budget.reset()
             st.session_state.guardrail_alert = False
             st.rerun()
-        if st.button("🛑 End Chat", use_container_width=True):
+        if st.button("🛑 End Chat", use_container_width=True, key="settings_end"):
             db.end_session(st.session_state.session_id)
             st.success("Chat ended. Start a new one anytime.")
-        if st.button("🗑️ Clear History", use_container_width=True):
+        if st.button("🗑️ Clear History", use_container_width=True, key="settings_clear"):
             db.clear_all()
             st.success("History cleared.")
 
@@ -339,6 +373,7 @@ elif page == "AEGIS Agent":
             st.warning(f"⏳ Rate limit reached. Try again in {wait}s.")
             st.stop()
 
+        # Zero-token greeting path
         if is_pure_greeting(user_msg):
             reply = get_greeting_reply()
             st.session_state.messages.append({"role": "user", "content": user_msg})
@@ -348,6 +383,7 @@ elif page == "AEGIS Agent":
             st.session_state.guardrail_alert = False
             st.rerun()
 
+        # Input guardrails
         gr = run_input_guardrails(user_msg)
         if gr.blocked:
             st.session_state.guardrail_alert = True
@@ -358,15 +394,18 @@ elif page == "AEGIS Agent":
             )
             st.rerun()
 
+        # Budget check
         est = estimate_tokens(user_msg) + 400
         if not st.session_state.budget.can_spend(est):
             st.error("⚠️ Token budget exhausted for this session. Start a new chat.")
             st.stop()
 
+        # Agent call
         st.session_state.messages.append({"role": "user", "content": gr.clean})
         with st.spinner("AEGIS is analyzing…"):
             reply, tripped = aegis_respond(gr.clean, st.session_state.chat.context())
 
+        # Output guardrails
         out_gr = run_output_guardrails(reply)
         if out_gr.blocked:
             reply = GUARDRAIL_MESSAGE
@@ -375,6 +414,7 @@ elif page == "AEGIS Agent":
         else:
             reply = out_gr.clean
 
+        # Bookkeeping
         spent = estimate_tokens(gr.clean) + estimate_tokens(reply)
         st.session_state.budget.spend(spent)
         st.session_state.chat.add("user", gr.clean)
